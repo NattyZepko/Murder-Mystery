@@ -16,6 +16,36 @@ type SendMessageToSuspectInput = {
 	message: string;
 };
 
+function chatTimeoutMs(): number {
+	const configured = Number(
+		process.env.AI_CHAT_TIMEOUT_MS ||
+			process.env.AI_REQUEST_TIMEOUT_MS ||
+			30000,
+	);
+
+	if (!Number.isFinite(configured) || configured <= 0) {
+		return 30000;
+	}
+
+	return Math.max(30000, configured);
+}
+
+function chatMaxAttempts(): number {
+	const configured = Number(
+		process.env.AI_CHAT_MAX_ATTEMPTS || process.env.AI_MAX_ATTEMPTS || 3,
+	);
+
+	if (!Number.isFinite(configured) || configured < 1) {
+		return 3;
+	}
+
+	return Math.max(1, Math.floor(configured));
+}
+
+async function wait(ms: number): Promise<void> {
+	await new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 function sanitizeSuspectReply(reply: string): string {
 	let cleaned = reply.trim();
 
@@ -90,17 +120,35 @@ export async function sendMessageToSuspect(input: SendMessageToSuspectInput) {
 		knownSuspects: caseRecord.suspects.map((entry) => entry.name),
 	});
 
-	let suspectReply: string;
-	try {
-		suspectReply = await aiProvider.generateChatReply({
-			systemPrompt,
-			userMessage: input.message,
-			history,
-			timeoutMs: Number(process.env.AI_REQUEST_TIMEOUT_MS || 30000),
-		});
-	} catch (error) {
-		const reason = error instanceof Error ? error.message : String(error);
-		console.error('[suspect-chat] AI call failed:', reason);
+	let suspectReply = '';
+	let lastError: unknown = null;
+	const timeoutMs = chatTimeoutMs();
+	const attempts = chatMaxAttempts();
+
+	for (let attempt = 1; attempt <= attempts; attempt += 1) {
+		try {
+			suspectReply = await aiProvider.generateChatReply({
+				systemPrompt,
+				userMessage: input.message,
+				history,
+				timeoutMs,
+			});
+			lastError = null;
+			break;
+		} catch (error) {
+			lastError = error;
+			const reason = error instanceof Error ? error.message : String(error);
+			console.error(
+				`[suspect-chat] AI call failed (attempt ${attempt}/${attempts}, timeout ${timeoutMs}ms): ${reason}`,
+			);
+
+			if (attempt < attempts) {
+				await wait(300 * attempt);
+			}
+		}
+	}
+
+	if (lastError !== null || !suspectReply.trim()) {
 		throw new SuspectChatError(
 			'The suspect is unavailable right now. Please try again.',
 			503,

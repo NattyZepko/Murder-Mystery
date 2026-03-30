@@ -771,7 +771,7 @@ export function MainGamePage() {
 											</label>
 
 											<button
-												className={styles.button}
+												className={`${styles.button} ${isGuessLocked ? styles.buttonCooldownDisabled : ''}`}
 												type="button"
 												onClick={handleSubmitGuess}
 												disabled={

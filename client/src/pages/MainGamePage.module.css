@@ -53,6 +53,13 @@
 	padding: 0.6rem 0.95rem;
 }
 
+.buttonCooldownDisabled {
+	background: #7f7f82;
+	color: #e4e4e6;
+	cursor: not-allowed;
+	box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+}
+
 .caseBox {
 	margin-top: 1rem;
 	border: 1px solid rgba(255, 255, 255, 0.18);

@@ -18,7 +18,7 @@ function getApiBaseUrls(): string[] {
 		return [...new Set(baseUrls)];
 	}
 
-	baseUrls.push('http://localhost:4001', 'http://localhost:4000');
+	baseUrls.push('http://localhost:4001');
 	return [...new Set(baseUrls)];
 }
 

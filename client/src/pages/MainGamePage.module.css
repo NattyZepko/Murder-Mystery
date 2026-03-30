@@ -355,6 +355,22 @@
 	font-weight: 700;
 }
 
+.debugBlock {
+	margin: 0.7rem 0 0;
+	padding: 0.65rem 0.75rem;
+	border-radius: 10px;
+	border: 1px solid rgba(248, 211, 143, 0.35);
+	background: rgba(33, 21, 11, 0.48);
+	color: #ffd9a5;
+	font-family: Consolas, 'Courier New', monospace;
+	font-size: 0.82rem;
+	line-height: 1.4;
+	white-space: pre-wrap;
+	word-break: break-word;
+	max-height: 220px;
+	overflow: auto;
+}
+
 .nextCaseCallout {
 	margin-top: 1rem;
 	border: 1px solid rgba(215, 179, 111, 0.55);

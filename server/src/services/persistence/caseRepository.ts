@@ -183,12 +183,17 @@ export async function updateCaseGenerationProgress(input: {
 export async function markCaseGenerationFailed(input: {
 	caseId: string;
 	errorMessage: string;
+	failedStageLabel?: string;
+	debugDetails?: string | null;
 }) {
 	await db.murderCase.update({
 		where: { id: input.caseId },
 		data: {
 			status: 'failed',
-			generationStepLabel: input.errorMessage,
+			generationStepLabel: input.failedStageLabel
+				? `Failed at ${input.failedStageLabel}`
+				: input.errorMessage,
+			finalOutcome: input.debugDetails || null,
 		},
 	});
 }

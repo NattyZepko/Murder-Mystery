@@ -4,7 +4,7 @@ A full-stack detective game where every new run generates a fresh murder case wi
 
 The app is built as a monorepo with a React client, an Express API, PostgreSQL persistence through Prisma, and a provider-agnostic AI layer currently backed by Gemini.
 
-## Key files (start here)
+## Key files
 
 These are the fastest files to read if you want to understand the project without scanning the whole repo first:
 
@@ -21,8 +21,6 @@ These are the fastest files to read if you want to understand the project withou
 - Conclusion and cooldown rules: [server/src/services/conclusion/conclusionService.ts](server/src/services/conclusion/conclusionService.ts)
 - Database schema: [server/prisma/schema.prisma](server/prisma/schema.prisma)
 - Product specification: [instructions.prompt.md](instructions.prompt.md)
-
-GitHub will resolve those relative links automatically. For example, [server/src/index.ts](server/src/index.ts) maps to the repository file view on GitHub.
 
 ## Tech stack
 

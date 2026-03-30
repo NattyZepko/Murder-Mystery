@@ -264,6 +264,14 @@ export function MainGamePage() {
 		return () => clearInterval(id);
 	}, [activeCase?.id, activeCase?.status]);
 
+	useEffect(() => {
+		if (activeCase?.status !== 'failed' || !activeCase.finalOutcome) {
+			return;
+		}
+
+		console.error('[case-generation][debug]\n' + activeCase.finalOutcome);
+	}, [activeCase?.status, activeCase?.finalOutcome]);
+
 	const activeSuspect = activeCase?.suspects.find(
 		(suspect) => suspect.id === selectedSuspectId,
 	);
@@ -556,6 +564,23 @@ export function MainGamePage() {
 								<p>Time of death: {activeCase.victim.timeOfDeath}</p>
 								<p>Wound: {activeCase.victim.murderWound}</p>
 								<p>Status: {activeCase.status}</p>
+								{activeCase.status === 'failed' ? (
+									<>
+										<p className={styles.warning}>
+											Generation failed at: {activeCase.generationStepLabel}
+										</p>
+										{activeCase.finalOutcome ? (
+											<pre className={styles.debugBlock}>
+												{activeCase.finalOutcome}
+											</pre>
+										) : (
+											<p>
+												Enable AI_DEBUG_ERRORS=true to include detailed server
+												diagnostics in this panel.
+											</p>
+										)}
+									</>
+								) : null}
 							</article>
 
 							<div className={styles.investigationLayout}>

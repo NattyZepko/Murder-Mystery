@@ -119,18 +119,60 @@ export function fallbackSuspects(): z.infer<typeof stage4SuspectsSchema> {
 export function fallbackWeaponRelations(): z.infer<
 	typeof stage5WeaponRelationsSchema
 > {
+	return fallbackWeaponRelationsForScenario();
+}
+
+export function fallbackWeaponRelationsForScenario(input?: {
+	weapons?: Array<{
+		name: string;
+		belongsToSuspectName: string | null;
+		isMurderWeapon: boolean;
+	}>;
+	suspects?: Array<{
+		name: string;
+		isGuilty: boolean;
+	}>;
+}): z.infer<typeof stage5WeaponRelationsSchema> {
+	if (!input?.weapons?.length || !input?.suspects?.length) {
+		return {
+			weaponSightings: [
+				{
+					weaponName: 'Antique Letter Opener',
+					seenBySuspectNames: ['Lena Hart', 'Clara Voss'],
+				},
+				{
+					weaponName: 'Fencing Foil',
+					seenBySuspectNames: ['Victor Hale', 'Jonas Pike'],
+				},
+				{ weaponName: 'Carving Knife', seenBySuspectNames: ['Mara Quinn'] },
+			],
+		};
+	}
+
+	const suspectNames = input.suspects.map((suspect) => suspect.name);
+	const guiltySuspectName =
+		input.suspects.find((suspect) => suspect.isGuilty)?.name || suspectNames[0];
+
 	return {
-		weaponSightings: [
-			{
-				weaponName: 'Antique Letter Opener',
-				seenBySuspectNames: ['Lena Hart', 'Clara Voss'],
-			},
-			{
-				weaponName: 'Fencing Foil',
-				seenBySuspectNames: ['Victor Hale', 'Jonas Pike'],
-			},
-			{ weaponName: 'Carving Knife', seenBySuspectNames: ['Mara Quinn'] },
-		],
+		weaponSightings: input.weapons.map((weapon, index) => {
+			const seenBy = new Set<string>();
+
+			if (weapon.belongsToSuspectName) {
+				seenBy.add(weapon.belongsToSuspectName);
+			}
+
+			seenBy.add(suspectNames[index % suspectNames.length]);
+			seenBy.add(suspectNames[(index + 2) % suspectNames.length]);
+
+			if (weapon.isMurderWeapon && guiltySuspectName) {
+				seenBy.add(guiltySuspectName);
+			}
+
+			return {
+				weaponName: weapon.name,
+				seenBySuspectNames: Array.from(seenBy),
+			};
+		}),
 	};
 }
 

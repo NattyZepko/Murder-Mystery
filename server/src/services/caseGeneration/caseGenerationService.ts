@@ -40,7 +40,7 @@ import {
 	fallbackSuspects,
 	fallbackTheme,
 	fallbackVictim,
-	fallbackWeaponRelations,
+	fallbackWeaponRelationsForScenario,
 	fallbackWeapons,
 } from './fallbackCaseParts';
 
@@ -57,12 +57,34 @@ const generationStages = [
 	'Finalizing case',
 ] as const;
 
+function configuredTimeoutMs(input: {
+	envValue: string | undefined;
+	fallbackMs: number;
+	minimumMs: number;
+}) {
+	const parsed = Number(input.envValue);
+
+	if (!Number.isFinite(parsed) || parsed <= 0) {
+		return input.fallbackMs;
+	}
+
+	return Math.max(input.minimumMs, parsed);
+}
+
 function timeoutMs() {
-	return Number(process.env.AI_REQUEST_TIMEOUT_MS || 30000);
+	return configuredTimeoutMs({
+		envValue: process.env.AI_REQUEST_TIMEOUT_MS,
+		fallbackMs: 30000,
+		minimumMs: 30000,
+	});
 }
 
 function heavyStageTimeoutMs() {
-	return Number(process.env.AI_HEAVY_STAGE_TIMEOUT_MS || 45000);
+	return configuredTimeoutMs({
+		envValue: process.env.AI_HEAVY_STAGE_TIMEOUT_MS,
+		fallbackMs: 45000,
+		minimumMs: Math.max(45000, timeoutMs()),
+	});
 }
 
 function maxAttempts() {
@@ -75,6 +97,18 @@ function baseRetryDelayMs() {
 
 function stageProgress(stageIndex: number): number {
 	return Math.round((stageIndex / (generationStages.length - 1)) * 100);
+}
+
+function includeDebugErrorsInApi(): boolean {
+	return (process.env.AI_DEBUG_ERRORS || '').toLowerCase() === 'true';
+}
+
+function formatGenerationError(error: unknown): string {
+	if (error instanceof Error) {
+		return error.stack || error.message;
+	}
+
+	return String(error);
 }
 
 function logStageAttemptFailure(details: {
@@ -159,6 +193,38 @@ function validateFinalInvariants(caseRecord: MurderCaseRecord) {
 			'True murderer must have seen the true murder weapon',
 		);
 	}
+}
+
+function normalizeWeaponSightings(input: {
+	weapons: WeaponRecord[];
+	suspects: Array<{ name: string; isGuilty: boolean }>;
+}): WeaponRecord[] {
+	const guiltySuspectName = input.suspects.find(
+		(suspect) => suspect.isGuilty,
+	)?.name;
+
+	return input.weapons.map((weapon, index) => {
+		const seenBy = new Set(
+			weapon.seenBySuspectNames.filter((name) => name.trim().length > 0),
+		);
+
+		if (weapon.belongsToSuspectName) {
+			seenBy.add(weapon.belongsToSuspectName);
+		}
+
+		if (seenBy.size === 0 && input.suspects[index % input.suspects.length]) {
+			seenBy.add(input.suspects[index % input.suspects.length].name);
+		}
+
+		if (weapon.isMurderWeapon && guiltySuspectName) {
+			seenBy.add(guiltySuspectName);
+		}
+
+		return {
+			...weapon,
+			seenBySuspectNames: Array.from(seenBy),
+		};
+	});
 }
 
 async function buildSuspectProfiles(input: {
@@ -256,6 +322,10 @@ async function generateCaseInBackground(input: {
 	caseId: string;
 	startedAt: string;
 }) {
+	let currentStageLabel: (typeof generationStages)[number] =
+		generationStages[0];
+	let currentStageProgress = stageProgress(0);
+
 	try {
 		const recentThemes = await listRecentThemes(8);
 
@@ -265,6 +335,8 @@ async function generateCaseInBackground(input: {
 			generationStepLabel: generationStages[0],
 		});
 
+		currentStageLabel = generationStages[0];
+		currentStageProgress = stageProgress(0);
 		const stage1 = await generateStructuredWithRetry({
 			provider: aiProvider,
 			schema: stage1ThemeSchema,
@@ -285,6 +357,8 @@ async function generateCaseInBackground(input: {
 			generationStepLabel: generationStages[1],
 		});
 
+		currentStageLabel = generationStages[1];
+		currentStageProgress = stageProgress(1);
 		const stage2 = await generateStructuredWithRetry({
 			provider: aiProvider,
 			schema: stage2VictimSchema,
@@ -308,6 +382,8 @@ async function generateCaseInBackground(input: {
 			generationStepLabel: generationStages[2],
 		});
 
+		currentStageLabel = generationStages[2];
+		currentStageProgress = stageProgress(2);
 		const stage3 = await generateStructuredWithRetry({
 			provider: aiProvider,
 			schema: stage3WeaponsSchema,
@@ -331,6 +407,8 @@ async function generateCaseInBackground(input: {
 			generationStepLabel: generationStages[3],
 		});
 
+		currentStageLabel = generationStages[3];
+		currentStageProgress = stageProgress(3);
 		const stage4 = await generateStructuredWithRetry({
 			provider: aiProvider,
 			schema: stage4SuspectsSchema,
@@ -351,6 +429,8 @@ async function generateCaseInBackground(input: {
 			generationStepLabel: generationStages[4],
 		});
 
+		currentStageLabel = generationStages[4];
+		currentStageProgress = stageProgress(4);
 		const stage5 = await generateStructuredWithRetry({
 			provider: aiProvider,
 			schema: stage5WeaponRelationsSchema,
@@ -365,7 +445,11 @@ async function generateCaseInBackground(input: {
 			onAttemptFailure: logStageAttemptFailure,
 			onRetryScheduled: logStageRetryScheduled,
 			onFallbackUsed: logStageFallbackUsed,
-			fallback: fallbackWeaponRelations,
+			fallback: () =>
+				fallbackWeaponRelationsForScenario({
+					weapons: stage3.weapons,
+					suspects: stage4.suspects,
+				}),
 		});
 
 		await updateCaseGenerationProgress({
@@ -374,6 +458,8 @@ async function generateCaseInBackground(input: {
 			generationStepLabel: generationStages[5],
 		});
 
+		currentStageLabel = generationStages[5];
+		currentStageProgress = stageProgress(5);
 		const stage6 = await generateStructuredWithRetry({
 			provider: aiProvider,
 			schema: stage6AlibiNetworkSchema,
@@ -394,20 +480,26 @@ async function generateCaseInBackground(input: {
 			generationStepLabel: generationStages[6],
 		});
 
-		const stagedWeapons: WeaponRecord[] = stage3.weapons.map((weapon) => {
-			const sightings =
-				stage5.weaponSightings.find((entry) => entry.weaponName === weapon.name)
-					?.seenBySuspectNames || [];
+		const stagedWeapons = normalizeWeaponSightings({
+			weapons: stage3.weapons.map((weapon) => {
+				const sightings =
+					stage5.weaponSightings.find(
+						(entry) => entry.weaponName === weapon.name,
+					)?.seenBySuspectNames || [];
 
-			return {
-				id: randomUUID(),
-				name: weapon.name,
-				belongsToSuspectName: weapon.belongsToSuspectName,
-				isMurderWeapon: weapon.isMurderWeapon,
-				seenBySuspectNames: sightings,
-			};
+				return {
+					id: randomUUID(),
+					name: weapon.name,
+					belongsToSuspectName: weapon.belongsToSuspectName,
+					isMurderWeapon: weapon.isMurderWeapon,
+					seenBySuspectNames: sightings,
+				};
+			}),
+			suspects: stage4.suspects,
 		});
 
+		currentStageLabel = generationStages[6];
+		currentStageProgress = stageProgress(6);
 		const stagedSuspects = await buildSuspectProfiles({
 			suspects: stage4.suspects,
 			alibis: stage6.alibis,
@@ -420,6 +512,8 @@ async function generateCaseInBackground(input: {
 			generationStepLabel: generationStages[7],
 		});
 
+		currentStageLabel = generationStages[7];
+		currentStageProgress = stageProgress(7);
 		const caseRecord: MurderCaseRecord = {
 			id: input.caseId,
 			theme: stage1.theme,
@@ -449,12 +543,25 @@ async function generateCaseInBackground(input: {
 
 		await saveGeneratedCase(caseRecord);
 	} catch (error) {
+		const technicalError = formatGenerationError(error);
+		const debugSummary = [
+			`Case ID: ${input.caseId}`,
+			`Failed stage: ${currentStageLabel}`,
+			`Stage progress: ${currentStageProgress}%`,
+			`Timeouts: AI_REQUEST_TIMEOUT_MS=${timeoutMs()} | AI_HEAVY_STAGE_TIMEOUT_MS=${heavyStageTimeoutMs()}`,
+			`Error: ${technicalError}`,
+		].join('\n');
+
 		await markCaseGenerationFailed({
 			caseId: input.caseId,
 			errorMessage: 'Generation failed. Try creating a new case.',
+			failedStageLabel: currentStageLabel,
+			debugDetails: includeDebugErrorsInApi() ? debugSummary : null,
 		});
 
-		console.error('[case-generation] background generation failed', error);
+		console.error(
+			'[case-generation] background generation failed\n' + debugSummary,
+		);
 	}
 }
 

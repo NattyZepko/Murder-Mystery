@@ -4,6 +4,11 @@ A full-stack detective game where every new run generates a fresh murder case wi
 
 The app is built as a monorepo with a React client, an Express API, PostgreSQL persistence through Prisma, and a provider-agnostic AI layer currently backed by Gemini.
 
+<img width="2039" height="859" alt="image" src="https://github.com/user-attachments/assets/5f5df2eb-5b9e-4c76-aa01-a879d05014eb" />
+<img width="1955" height="893" alt="image" src="https://github.com/user-attachments/assets/025e2303-6632-41d3-8dea-3719b552036e" />
+<img width="965" height="607" alt="image" src="https://github.com/user-attachments/assets/4f64468c-a4bb-4728-b5b6-e9aed971c67f" />
+
+
 ## Key files
 
 These are the fastest files to read if you want to understand the project without scanning the whole repo first:

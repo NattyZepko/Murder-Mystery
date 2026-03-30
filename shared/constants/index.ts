@@ -1,0 +1,1 @@
+export const DEFAULT_AI_TIMEOUT_MS = 30000;

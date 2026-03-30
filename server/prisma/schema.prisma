@@ -1,0 +1,145 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum CaseStatus {
+  idle
+  generating
+  active
+  solved
+  failed
+}
+
+enum MessageRole {
+  user
+  suspect
+  system
+}
+
+model MurderCase {
+  id                  String        @id @default(uuid())
+  theme               String
+  storySummary        String
+  locationName        String
+  victimName          String
+  victimBodyFoundRoom String
+  victimTimeOfDeath   String
+  victimMurderWound   String
+  status              CaseStatus    @default(generating)
+  startedAt           DateTime      @default(now())
+  solvedAt            DateTime?
+  finalOutcome        String?
+  generationProgress  Int           @default(0)
+  generationStepLabel String
+  suspects            Suspect[]
+  suspectRelationships SuspectRelationship[]
+  weapons             Weapon[]
+  discoveredWeapons   DiscoveredWeapon[]
+  guessAttempts       GuessAttempt[]
+  guessCooldown       GuessCooldown?
+  chats               ChatMessage[]
+}
+
+model Suspect {
+  id                   String      @id @default(uuid())
+  caseId               String
+  name                 String
+  isGuilty             Boolean
+  relationshipToVictim String
+  gender               String
+  quirkBehavior        String?
+  motive               String
+  alibi                String
+  privateBackstory     String
+  publicDemeanor       String
+  knowsMotiveOfSuspectName String
+  murderCase           MurderCase  @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  messages             ChatMessage[]
+  ownedWeapons         Weapon[]    @relation("WeaponOwner")
+  outgoingRelationships SuspectRelationship[] @relation("RelationshipSource")
+  incomingRelationships SuspectRelationship[] @relation("RelationshipTarget")
+
+  @@index([caseId])
+}
+
+model Weapon {
+  id                 String     @id @default(uuid())
+  caseId             String
+  name               String
+  belongsToSuspectId String?
+  seenBySuspectNames String[]   @default([])
+  isMurderWeapon     Boolean    @default(false)
+  murderCase         MurderCase @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  belongsToSuspect   Suspect?   @relation("WeaponOwner", fields: [belongsToSuspectId], references: [id], onDelete: SetNull)
+  discoveredIn       DiscoveredWeapon[]
+
+  @@index([caseId])
+  @@index([belongsToSuspectId])
+}
+
+model DiscoveredWeapon {
+  id                   String     @id @default(uuid())
+  caseId               String
+  weaponId             String
+  discoveredAt         DateTime   @default(now())
+  discoveredBySuspectId String?
+  murderCase           MurderCase @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  weapon               Weapon     @relation(fields: [weaponId], references: [id], onDelete: Cascade)
+
+  @@unique([caseId, weaponId])
+  @@index([caseId])
+}
+
+model GuessAttempt {
+  id               String     @id @default(uuid())
+  caseId           String
+  guessedSuspectId String
+  guessedWeaponId  String
+  isCorrect        Boolean
+  guessedAt        DateTime   @default(now())
+  murderCase       MurderCase @relation(fields: [caseId], references: [id], onDelete: Cascade)
+
+  @@index([caseId])
+  @@index([guessedAt])
+}
+
+model GuessCooldown {
+  caseId      String     @id
+  lockedUntil DateTime?
+  murderCase  MurderCase @relation(fields: [caseId], references: [id], onDelete: Cascade)
+
+  @@index([lockedUntil])
+}
+
+model SuspectRelationship {
+  id                     String     @id @default(uuid())
+  caseId                 String
+  suspectId              String
+  relatedSuspectId       String
+  relationshipDescription String
+  murderCase             MurderCase @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  suspect                Suspect    @relation("RelationshipSource", fields: [suspectId], references: [id], onDelete: Cascade)
+  relatedSuspect         Suspect    @relation("RelationshipTarget", fields: [relatedSuspectId], references: [id], onDelete: Cascade)
+
+  @@index([caseId])
+  @@index([suspectId])
+  @@index([relatedSuspectId])
+}
+
+model ChatMessage {
+  id         String     @id @default(uuid())
+  caseId     String
+  suspectId  String
+  role       MessageRole
+  content    String
+  createdAt  DateTime   @default(now())
+  murderCase MurderCase @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  suspect    Suspect    @relation(fields: [suspectId], references: [id], onDelete: Cascade)
+
+  @@index([caseId, suspectId, createdAt])
+}

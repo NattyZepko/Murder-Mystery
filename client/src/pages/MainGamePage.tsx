@@ -272,6 +272,25 @@ export function MainGamePage() {
 		console.error('[case-generation][debug]\n' + activeCase.finalOutcome);
 	}, [activeCase?.status, activeCase?.finalOutcome]);
 
+	useEffect(() => {
+		const discoveredWeapons = activeCase?.discoveredWeapons || [];
+
+		if (discoveredWeapons.length === 0) {
+			if (guessWeaponId !== '') {
+				setGuessWeaponId('');
+			}
+			return;
+		}
+
+		const selectedStillExists = discoveredWeapons.some(
+			(entry) => entry.weaponId === guessWeaponId,
+		);
+
+		if (!selectedStillExists) {
+			setGuessWeaponId(discoveredWeapons[0].weaponId);
+		}
+	}, [activeCase?.discoveredWeapons, guessWeaponId]);
+
 	const activeSuspect = activeCase?.suspects.find(
 		(suspect) => suspect.id === selectedSuspectId,
 	);
@@ -327,6 +346,10 @@ export function MainGamePage() {
 	const canSubmitGuess = Boolean(
 		guessSuspectId && guessWeaponId && !isGuessLocked,
 	);
+	const showGuessFeedback =
+		guessFeedback !== null &&
+		(!guessFeedback.startsWith('Wrong guess. Cooldown started') ||
+			isGuessLocked);
 
 	const elapsedGameSeconds = activeCase?.startedAt
 		? Math.max(
@@ -739,7 +762,6 @@ export function MainGamePage() {
 														setGuessWeaponId(event.target.value)
 													}
 												>
-													<option value="">Select discovered weapon</option>
 													{discoveredWeaponOptions.map((entry) => (
 														<option key={entry.weaponId} value={entry.weaponId}>
 															{entry.weaponName}
@@ -753,6 +775,7 @@ export function MainGamePage() {
 												type="button"
 												onClick={handleSubmitGuess}
 												disabled={
+													isGuessLocked ||
 													!canSubmitGuess ||
 													guessMutation.isPending ||
 													discoveredWeaponOptions.length === 0
@@ -769,7 +792,7 @@ export function MainGamePage() {
 												</p>
 											) : null}
 
-											{guessFeedback ? <p>{guessFeedback}</p> : null}
+											{showGuessFeedback ? <p>{guessFeedback}</p> : null}
 										</article>
 									) : (
 										<article className={styles.caseBox}>
@@ -778,7 +801,7 @@ export function MainGamePage() {
 												The culprit has been confirmed. Chat remains readable,
 												and you can generate a new case from the callout below.
 											</p>
-											{guessFeedback ? <p>{guessFeedback}</p> : null}
+											{showGuessFeedback ? <p>{guessFeedback}</p> : null}
 										</article>
 									)}
 								</div>
